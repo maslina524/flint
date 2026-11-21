@@ -2,7 +2,9 @@
 resolver = "2"
 members = [
     "crates/flint",
-    "crates/flint_driver",
+    "crates/flint-fmt",
+    "crates/flint-driver",
+    "crates/flint-modules",
 ]
 
 default-members = ["crates/flint"]
@@ -15,21 +17,19 @@ authors = ["maslina524 <luk.kirill2804@gmail.com>"]
 repository = "https://github.com/maslina524/flint"
 
 [profile.release]
-opt-level = "z"
+opt-level = 3
 lto = "fat"
-codegen-units = 1
-panic = "abort"
+codegen-units = 16
 strip = "symbols"
 debug = false
 incremental = false
 overflow-checks = false
 
 [profile.dev]
-opt-level = "z"
+opt-level = 1
 lto = true
 debug = true
-codegen-units = 1
-panic = "abort"
+codegen-units = 16
 overflow-checks = true
 
 [workspace.lints.rust]
