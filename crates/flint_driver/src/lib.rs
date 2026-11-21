@@ -3,6 +3,8 @@ pub struct MainError;
 
 pub type MainResult = Result<(), MainError>;
 
-pub fn main() -> MainResult {
+/// # Errors
+/// If the app returned an error.
+pub const fn main() -> MainResult {
     Ok(())
 }
