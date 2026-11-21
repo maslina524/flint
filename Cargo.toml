@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/flint",
+    "crates/flint_driver",
 ]
 
 default-members = ["crates/flint"]
