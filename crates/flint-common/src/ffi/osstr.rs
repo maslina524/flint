@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ffi::CStr};
+use std::{borrow::Cow, ffi::CStr, fmt};
 
 use crate::sys::osstr::Slice;
 
@@ -15,6 +15,14 @@ impl OsStr {
 
     pub fn new_mut<S: AsMut<Self> + ?Sized>(s: &mut S) -> &mut Self {
         s.as_mut()
+    }
+
+    #[must_use]
+    pub const fn from_bytes(bytes: &[u8]) -> Option<&Self> {
+        match Slice::from_bytes(bytes) {
+            Some(s) => Some(Self::from_inner(s)),
+            None => None,
+        }
     }
 
     const fn from_inner(slice: &Slice) -> &Self {
@@ -50,6 +58,18 @@ impl OsStr {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.slice.is_empty()
+    }
+}
+
+impl fmt::Display for OsStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.slice, f)
+    }
+}
+
+impl fmt::Debug for OsStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.slice, f)
     }
 }
 
@@ -127,5 +147,12 @@ mod tests {
             osstr.as_c_str(),
             Cow::<'_, CStr>::Borrowed(c"OsStr from CStr")
         );
+    }
+
+    #[test]
+    fn display_and_debug() {
+        let osstr = OsStr::from_bytes(b"foo\xED\xA0\x80bar").unwrap();
+        assert_eq!(format!("{osstr}"), "foo���bar");
+        assert_eq!(format!("{osstr:?}"), r#""foo\xED\xA0\x80bar""#);
     }
 }

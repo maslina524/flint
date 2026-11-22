@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     ffi::{CStr, CString},
-    slice,
+    fmt, slice,
 };
 
 #[repr(transparent)]
@@ -46,7 +46,36 @@ impl Slice {
         unsafe { Self::from_mut_bytes_unchecked(with_nul_buf) }
     }
 
+    pub const fn from_bytes(bytes: &[u8]) -> Option<&Self> {
+        const fn build_self(bytes: &[u8]) -> &Slice {
+            unsafe { Slice::from_bytes_unchecked(bytes) }
+        }
+
+        const fn contains_nul(bytes: &[u8]) -> bool {
+            let mut idx = 0;
+            while idx < bytes.len() {
+                if bytes[idx] == 0 {
+                    return true;
+                }
+                idx += 1;
+            }
+            false
+        }
+
+        if bytes.is_empty() {
+            return Some(build_self(bytes));
+        }
+
+        let wo_last_byte = unsafe { slice::from_raw_parts(bytes.as_ptr(), bytes.len() - 1) };
+        if contains_nul(wo_last_byte) {
+            None
+        } else {
+            Some(build_self(bytes))
+        }
+    }
+
     /// # Safety
+    /// `value` must not contain null bytes, but the last byte may be a null byte.
     #[must_use]
     pub const unsafe fn from_bytes_unchecked(value: &[u8]) -> &Self {
         // SAFETY: [u8] == Slice (repr transparent)
@@ -121,11 +150,55 @@ impl Slice {
 const fn find_nul(bytes: &[u8]) -> Option<usize> {
     let mut idx = 0;
     while idx < bytes.len() {
-        let val = bytes[idx];
-        if val == 0 {
+        if bytes[idx] == 0 {
             return Some(idx);
         }
         idx += 1;
     }
     None
+}
+
+impl fmt::Display for Slice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let bytes = self.as_bytes();
+        let mut iter = bytes.utf8_chunks();
+
+        let Some(chunk) = iter.next() else {
+            return Ok(());
+        };
+        let first_valid = chunk.valid();
+        if chunk.invalid().is_empty() {
+            debug_assert_eq!(first_valid.len(), bytes.len());
+            return write!(f, "{first_valid}");
+        }
+
+        write!(f, "{first_valid}{}", char::REPLACEMENT_CHARACTER)?;
+
+        for chunk in iter {
+            write!(f, "{}", chunk.valid())?;
+            if !chunk.invalid().is_empty() {
+                write!(f, "{}", char::REPLACEMENT_CHARACTER)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Slice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"")?;
+
+        for chunk in self.as_bytes().utf8_chunks() {
+            for ch in chunk.valid().escape_debug() {
+                write!(f, "{ch}")?;
+            }
+
+            for &byte in chunk.invalid() {
+                write!(f, "\\x{byte:02X}")?;
+            }
+        }
+
+        write!(f, "\"")
+    }
 }
