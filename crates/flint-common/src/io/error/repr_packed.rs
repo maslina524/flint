@@ -89,7 +89,7 @@ impl Repr {
         match self.decode_repr() {
             ErrorData::Os(_) => todo!(),
             ErrorData::Simple(k) => k,
-            ErrorData::Message(s) => s.kind
-        }  
+            ErrorData::Message(s) => s.kind,
+        }
     }
 }

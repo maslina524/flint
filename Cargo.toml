@@ -4,7 +4,9 @@ members = [
     "crates/flint",
     "crates/flint-fmt",
     "crates/flint-driver",
-    "crates/flint-modules", "crates/flint-common",
+    "crates/flint-modules",
+    "crates/flint-common",
+    "crates/flint-wtf8",
 ]
 
 default-members = ["crates/flint"]

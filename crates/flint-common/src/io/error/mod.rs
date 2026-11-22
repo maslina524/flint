@@ -14,7 +14,7 @@ const _: () = assert!(
 pub enum ErrorData {
     Os(RawOsError),
     Simple(ErrorKind),
-    Message(&'static SimpleMessage)
+    Message(&'static SimpleMessage),
 }
 
 #[repr(align(4))]
@@ -44,7 +44,9 @@ impl Error {
 
     #[must_use]
     pub const fn from_message(msg: &'static SimpleMessage) -> Self {
-        Self { repr: Repr::new_message(msg) }
+        Self {
+            repr: Repr::new_message(msg),
+        }
     }
 
     #[must_use]
@@ -69,7 +71,8 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use crate::io::{
-        Error, error::{ErrorKind, RawOsError, SimpleMessage},
+        Error,
+        error::{ErrorKind, RawOsError, SimpleMessage},
     };
 
     #[test]
@@ -94,7 +97,7 @@ mod tests {
     fn message_error() {
         static MESSAGE: SimpleMessage = SimpleMessage {
             kind: ErrorKind::Other,
-            message: "Example Error"
+            message: "Example Error",
         };
 
         let err = Error::from_message(&MESSAGE);
