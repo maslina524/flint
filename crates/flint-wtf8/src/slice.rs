@@ -63,7 +63,7 @@ impl Wtf8 {
                 let utf8 = unsafe { str::from_utf8_unchecked(valid) };
                 s.push_str(utf8);
                 s.push(char::REPLACEMENT_CHARACTER);
-                
+
                 bytes = &rest[3..];
                 s
             }

@@ -8,5 +8,8 @@ repository.workspace = true
 
 [dependencies]
 
+[target.'cfg(windows)'.dependencies]
+flint-wtf8 = { path = "../flint-wtf8" }
+
 [lints]
 workspace = true
