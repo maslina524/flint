@@ -14,6 +14,13 @@ const _: () = assert!(
 pub enum ErrorData {
     Os(RawOsError),
     Simple(ErrorKind),
+    Message(&'static SimpleMessage)
+}
+
+#[repr(align(4))]
+pub struct SimpleMessage {
+    pub kind: ErrorKind,
+    pub message: &'static str,
 }
 
 pub struct Error {
@@ -29,14 +36,19 @@ impl Error {
     }
 
     #[must_use]
-    pub const fn simple(kind: ErrorKind) -> Self {
+    pub const fn from_simple(kind: ErrorKind) -> Self {
         Self {
             repr: Repr::new_kind(kind),
         }
     }
 
     #[must_use]
-    pub const fn raw_os_error(&self) -> Option<RawOsError> {
+    pub const fn from_message(msg: &'static SimpleMessage) -> Self {
+        Self { repr: Repr::new_message(msg) }
+    }
+
+    #[must_use]
+    pub fn raw_os_error(&self) -> Option<RawOsError> {
         let ErrorData::Os(err) = self.repr.decode_repr() else {
             return None;
         };
@@ -44,7 +56,7 @@ impl Error {
     }
 
     #[must_use]
-    pub const fn kind(&self) -> ErrorKind {
+    pub fn kind(&self) -> ErrorKind {
         self.repr.kind()
     }
 }
@@ -57,8 +69,7 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use crate::io::{
-        Error,
-        error::{ErrorKind, RawOsError},
+        Error, error::{ErrorKind, RawOsError, SimpleMessage},
     };
 
     #[test]
@@ -74,8 +85,20 @@ mod tests {
 
     #[test]
     fn simple_error() {
-        let err = Error::simple(ErrorKind::AccessDenied);
+        let err = Error::from_simple(ErrorKind::AccessDenied);
         let raw = err.kind();
         assert_eq!(raw, ErrorKind::AccessDenied);
+    }
+
+    #[test]
+    fn message_error() {
+        static MESSAGE: SimpleMessage = SimpleMessage {
+            kind: ErrorKind::Other,
+            message: "Example Error"
+        };
+
+        let err = Error::from_message(&MESSAGE);
+        let raw = err.kind();
+        assert_eq!(raw, ErrorKind::Other);
     }
 }
