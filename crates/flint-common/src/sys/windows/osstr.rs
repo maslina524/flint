@@ -48,7 +48,7 @@ impl Slice {
     /// # Errors
     /// If [`Wtf8`] is not a UTF-8 compatible string.
     #[must_use]
-    pub const fn as_str(&self) -> Option<&str> {
+    pub const fn to_str(&self) -> Option<&str> {
         match self.bytes.as_str() {
             Ok(s) => Some(s),
             Err(_) => None,

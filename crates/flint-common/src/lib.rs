@@ -4,4 +4,3 @@ pub mod ffi;
 pub mod io;
 
 mod sys;
-pub use sys::windows as imp;
