@@ -1,4 +1,8 @@
-use std::{borrow::Cow, ffi::CStr, slice};
+use std::{
+    borrow::Cow,
+    ffi::{CStr, CString},
+    slice,
+};
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq)]
@@ -75,18 +79,6 @@ impl Slice {
     /// If [`Wtf8`] is not a UTF-8 compatible string.
     #[must_use]
     pub const fn to_str(&self) -> Option<&str> {
-        const fn find_nul(bytes: &[u8]) -> Option<usize> {
-            let mut idx = 0;
-            while idx < bytes.len() {
-                let val = bytes[idx];
-                if val == 0 {
-                    return Some(idx);
-                }
-                idx += 1;
-            }
-            None
-        }
-
         let bytes = self.as_bytes();
         let trimmed = if let Some(idx) = find_nul(bytes) {
             // SAFETY: Equivalent to `&bytes[..idx]`; impl this way for `const fn`
@@ -101,7 +93,39 @@ impl Slice {
     }
 
     #[must_use]
+    pub fn as_c_str(&self) -> Cow<'_, CStr> {
+        let bytes = self.as_bytes();
+        find_nul(bytes).map_or_else(
+            || {
+                let mut buf = Vec::with_capacity(bytes.len() + 1);
+                buf.extend_from_slice(bytes);
+                // SAFETY: Create a `CString` from bytes that initially lack a NUL,
+                // and then append a single NUL at the end of the string.
+                let c_string = unsafe { CString::from_vec_unchecked(buf) };
+                Cow::Owned(c_string)
+            },
+            |idx| {
+                // SAFETY: Take a slice up to the first NUL.
+                let c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&bytes[..=idx]) };
+                Cow::Borrowed(c_str)
+            },
+        )
+    }
+
+    #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(self.as_bytes())
     }
+}
+
+const fn find_nul(bytes: &[u8]) -> Option<usize> {
+    let mut idx = 0;
+    while idx < bytes.len() {
+        let val = bytes[idx];
+        if val == 0 {
+            return Some(idx);
+        }
+        idx += 1;
+    }
+    None
 }

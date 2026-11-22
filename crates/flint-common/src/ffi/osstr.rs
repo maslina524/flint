@@ -33,6 +33,11 @@ impl OsStr {
     }
 
     #[must_use]
+    pub fn as_c_str(&self) -> Cow<'_, CStr> {
+        self.slice.as_c_str()
+    }
+
+    #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         self.slice.to_string_lossy()
     }
@@ -98,6 +103,8 @@ impl AsMut<OsStr> for CStr {
 
 #[cfg(test)]
 mod tests {
+    use std::{borrow::Cow, ffi::CStr};
+
     use crate::ffi::OsStr;
 
     #[test]
@@ -107,5 +114,18 @@ mod tests {
 
         let osstr = OsStr::new(c"OsStr from CStr");
         assert_eq!(osstr.to_str(), Some("OsStr from CStr"));
+    }
+
+    #[test]
+    fn as_c_str_new() {
+        let c_string = cr"From &str wo \0".to_owned();
+        let osstr = OsStr::new(r"From &str wo \0");
+        assert_eq!(osstr.as_c_str(), Cow::<'_, CStr>::Owned(c_string));
+
+        let osstr = OsStr::new(c"OsStr from CStr");
+        assert_eq!(
+            osstr.as_c_str(),
+            Cow::<'_, CStr>::Borrowed(c"OsStr from CStr")
+        );
     }
 }
