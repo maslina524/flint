@@ -14,7 +14,7 @@ mod tests {
     fn render_for_human() {
         struct Human;
 
-        impl Renderable for Human { }
+        impl Renderable for Human {}
         impl fmt::Display for Human {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "Human output")
