@@ -4,3 +4,6 @@ extern crate alloc;
 
 mod slice;
 pub use slice::Wtf8;
+
+mod codepoint;
+pub use codepoint::*;
