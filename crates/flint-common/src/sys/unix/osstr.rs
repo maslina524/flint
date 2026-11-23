@@ -48,6 +48,7 @@ impl Slice {
 
     pub const fn from_bytes(bytes: &[u8]) -> Option<&Self> {
         const fn build_self(bytes: &[u8]) -> &Slice {
+            // SAFETY: Function creates `Slice` from a safe slice in the context of `fn from_bytes`
             unsafe { Slice::from_bytes_unchecked(bytes) }
         }
 
@@ -63,9 +64,10 @@ impl Slice {
         }
 
         if bytes.is_empty() {
-            return Some(build_self(bytes));
+            return Some(build_self(&[]));
         }
 
+        // SAFETY: Equivalent to `&bytes[..bytes.len() - 1]`; impl this way for `const fn`
         let wo_last_byte = unsafe { slice::from_raw_parts(bytes.as_ptr(), bytes.len() - 1) };
         if contains_nul(wo_last_byte) {
             None
@@ -109,6 +111,10 @@ impl Slice {
     #[must_use]
     pub const fn to_str(&self) -> Option<&str> {
         let bytes = self.as_bytes();
+        if bytes.is_empty() {
+            return Some("");
+        }
+
         let trimmed = if let Some(idx) = find_nul(bytes) {
             // SAFETY: Equivalent to `&bytes[..idx]`; impl this way for `const fn`
             unsafe { slice::from_raw_parts(bytes.as_ptr(), idx) }
@@ -124,6 +130,10 @@ impl Slice {
     #[must_use]
     pub fn as_c_str(&self) -> Cow<'_, CStr> {
         let bytes = self.as_bytes();
+        if bytes.is_empty() {
+            return Cow::Borrowed(c"");
+        }
+
         find_nul(bytes).map_or_else(
             || {
                 let mut buf = Vec::with_capacity(bytes.len() + 1);
