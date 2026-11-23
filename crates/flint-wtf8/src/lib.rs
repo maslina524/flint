@@ -7,3 +7,6 @@ pub use slice::Wtf8;
 
 mod codepoint;
 pub use codepoint::*;
+
+mod utf16;
+pub use utf16::*;
