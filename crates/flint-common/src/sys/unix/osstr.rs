@@ -25,33 +25,27 @@ impl Slice {
 
     #[must_use]
     pub const fn from_cstr(s: &CStr) -> &Self {
-        // SAFETY: \0 only at the end.
-        unsafe { Self::from_bytes_unchecked(s.to_bytes_with_nul()) }
+        // SAFETY: No NUL in string.
+        unsafe { Self::from_bytes_unchecked(s.to_bytes()) }
     }
 
     #[must_use]
     pub const fn from_cstr_mut(s: &mut CStr) -> &mut Self {
         #[allow(clippy::needless_pass_by_ref_mut, reason = "Mut CStr.")]
-        pub const fn cstr_as_bytes_with_nul_mut(cstr: &mut CStr) -> &mut [u8] {
-            // SAFETY: In `core`, we subtract 1 to trim the null byte, but since we actually need it, we add 1 back.
-            let len = unsafe { cstr.count_bytes().unchecked_add(1) };
+        pub const fn cstr_as_mut_bytes(cstr: &mut CStr) -> &mut [u8] {
+            let len = cstr.count_bytes();
             let ptr = cstr.as_ptr().cast_mut().cast::<u8>();
 
-            // SAFETY: The ptr is created from a CStr, and the length is determined by counting the bytes, including the NUL.
+            // SAFETY: The ptr is created from a CStr, and the length is determined by counting the bytes.
             unsafe { slice::from_raw_parts_mut(ptr, len) }
         }
 
-        let with_nul_buf = cstr_as_bytes_with_nul_mut(s);
-        // SAFETY: \0 only at the end.
-        unsafe { Self::from_mut_bytes_unchecked(with_nul_buf) }
+        let mut_buf = cstr_as_mut_bytes(s);
+        // SAFETY: No NUL in string
+        unsafe { Self::from_mut_bytes_unchecked(mut_buf) }
     }
 
     pub const fn from_bytes(bytes: &[u8]) -> Option<&Self> {
-        const fn build_self(bytes: &[u8]) -> &Slice {
-            // SAFETY: Function creates `Slice` from a safe slice in the context of `fn from_bytes`
-            unsafe { Slice::from_bytes_unchecked(bytes) }
-        }
-
         const fn contains_nul(bytes: &[u8]) -> bool {
             let mut idx = 0;
             while idx < bytes.len() {
@@ -63,16 +57,12 @@ impl Slice {
             false
         }
 
-        if bytes.is_empty() {
-            return Some(build_self(&[]));
-        }
-
-        // SAFETY: Equivalent to `&bytes[..bytes.len() - 1]`; impl this way for `const fn`
-        let wo_last_byte = unsafe { slice::from_raw_parts(bytes.as_ptr(), bytes.len() - 1) };
-        if contains_nul(wo_last_byte) {
+        if contains_nul(bytes) {
             None
         } else {
-            Some(build_self(bytes))
+            // SAFETY: Not contains NUL.
+            let slice = unsafe { Self::from_bytes_unchecked(bytes) };
+            Some(slice)
         }
     }
 
@@ -115,57 +105,27 @@ impl Slice {
             return Some("");
         }
 
-        let trimmed = if let Some(idx) = find_nul(bytes) {
-            // SAFETY: Equivalent to `&bytes[..idx]`; impl this way for `const fn`
-            unsafe { slice::from_raw_parts(bytes.as_ptr(), idx) }
-        } else {
-            bytes
-        };
-        match str::from_utf8(trimmed) {
+        match str::from_utf8(bytes) {
             Ok(s) => Some(s),
             Err(_) => None,
         }
     }
 
     #[must_use]
-    pub fn as_c_str(&self) -> Cow<'_, CStr> {
-        let bytes = self.as_bytes();
-        if bytes.is_empty() {
-            return Cow::Borrowed(c"");
-        }
+    pub fn as_c_str(&self) -> CString {
+        let bytes = &self.bytes;
+        let mut buf = Vec::with_capacity(bytes.len() + 1);
+        buf.extend_from_slice(bytes);
 
-        find_nul(bytes).map_or_else(
-            || {
-                let mut buf = Vec::with_capacity(bytes.len() + 1);
-                buf.extend_from_slice(bytes);
-                // SAFETY: Create a `CString` from bytes that initially lack a NUL,
-                // and then append a single NUL at the end of the string.
-                let c_string = unsafe { CString::from_vec_unchecked(buf) };
-                Cow::Owned(c_string)
-            },
-            |idx| {
-                // SAFETY: Take a slice up to the first NUL.
-                let c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&bytes[..=idx]) };
-                Cow::Borrowed(c_str)
-            },
-        )
+        // SAFETY: Create a `CString` from bytes that initially lack a NUL,
+        // and then append a single NUL at the end of the string.
+        unsafe { CString::from_vec_unchecked(buf) }
     }
 
     #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(self.as_bytes())
     }
-}
-
-const fn find_nul(bytes: &[u8]) -> Option<usize> {
-    let mut idx = 0;
-    while idx < bytes.len() {
-        if bytes[idx] == 0 {
-            return Some(idx);
-        }
-        idx += 1;
-    }
-    None
 }
 
 impl fmt::Display for Slice {

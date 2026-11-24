@@ -2,5 +2,6 @@
 
 pub mod ffi;
 pub mod io;
+pub mod path;
 
 mod sys;

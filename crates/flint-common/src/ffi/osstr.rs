@@ -1,4 +1,8 @@
-use std::{borrow::Cow, ffi::CStr, fmt};
+use std::{
+    borrow::Cow,
+    ffi::{CStr, CString},
+    fmt,
+};
 
 use crate::sys::osstr::Slice;
 
@@ -41,7 +45,7 @@ impl OsStr {
     }
 
     #[must_use]
-    pub fn as_c_str(&self) -> Cow<'_, CStr> {
+    pub fn as_c_str(&self) -> CString {
         self.slice.as_c_str()
     }
 
