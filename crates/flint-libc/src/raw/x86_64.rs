@@ -4,6 +4,7 @@ use core::arch::asm;
 pub enum Table {
     Write = 1,
     Close = 3,
+    OpenAt = 257,
 }
 
 /// # SAFETY

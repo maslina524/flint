@@ -1,7 +1,7 @@
 use std::{
     fs::File,
     io::{Read as _, Seek as _, SeekFrom},
-    os::fd::AsRawFd,
+    os::fd::AsRawFd as _,
 };
 
 use rustix::fs;
