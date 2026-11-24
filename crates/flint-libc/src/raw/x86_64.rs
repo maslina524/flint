@@ -3,7 +3,7 @@ use core::arch::asm;
 #[repr(usize)]
 pub enum Table {
     Write = 1,
-    MemFdCreate = 319,
+    Close = 3,
 }
 
 /// # SAFETY
