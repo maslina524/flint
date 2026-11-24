@@ -4,6 +4,7 @@ use core::arch::asm;
 pub enum Table {
     Write = 1,
     Close = 3,
+    Fcntl = 72,
     OpenAt = 257,
 }
 

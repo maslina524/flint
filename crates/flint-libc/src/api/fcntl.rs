@@ -29,3 +29,18 @@ pub fn open(path: &CStr, flags: c_int, mode: c_uint) -> Result<RawFd, Errno> {
     const AT_FDCWD: RawFd = -100;
     openat(AT_FDCWD, path, flags, mode)
 }
+
+/// # Errors
+/// On success: bitmask;
+/// on failure: [`Errno`] returned by the kernel.
+///
+/// # References
+///  - [Linux]
+///
+/// [Linux]: <https://elixir.bootlin.com/linux/v6.17/source/fs/fcntl.c#L576>
+pub fn fcntl(fd: RawFd, cmd: c_uint) -> Result<i32, Errno> {
+    // SAFETY: The number is valid;
+    // if `cmd` are invalid, the kernel will return `Errno`.
+    let ret = unsafe { syscall!(Table::Fcntl, fd, cmd, 0) };
+    ret.map(|v| v as i32)
+}
