@@ -1,4 +1,8 @@
-use core::{error::Error, fmt, mem};
+use core::{
+    error::Error,
+    fmt,
+    mem::{self, ManuallyDrop},
+};
 
 use crate::{
     errno::Errno,
@@ -22,7 +26,7 @@ pub struct File(RawFd);
 
 impl File {
     /// # Errors
-    /// If fd in invalid
+    /// If fd is invalid.
     pub fn from_fd(raw: RawFd) -> Result<Self, InvalidFd> {
         fcntl::fcntl(raw, 1).map(Self).map_err(InvalidFd)
     }
@@ -32,6 +36,21 @@ impl File {
     #[must_use]
     pub const unsafe fn from_fd_unchecked(raw: RawFd) -> Self {
         Self(raw)
+    }
+
+    /// # Errors
+    /// If fd is invalid.
+    pub fn from_fd_no_close(raw: RawFd) -> Result<ManuallyDrop<Self>, InvalidFd> {
+        let ret = Self::from_fd(raw)?;
+        Ok(ManuallyDrop::new(ret))
+    }
+
+    /// # Safety
+    /// The fd must be valid for the kernel.
+    #[must_use]
+    pub const unsafe fn from_fd_no_close_unchecked(raw: RawFd) -> ManuallyDrop<Self> {
+        let ret = Self(raw);
+        ManuallyDrop::new(ret)
     }
 
     #[must_use]
