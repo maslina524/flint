@@ -3,4 +3,5 @@
 mod api;
 pub use api::*;
 
+mod init_array;
 mod raw;
