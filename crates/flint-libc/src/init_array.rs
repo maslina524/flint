@@ -1,17 +1,11 @@
 #![allow(clippy::similar_names, reason = "C style")]
-#![cfg(all(target_os = "linux", target_env = "gnu"))]
 
 use core::{
-    ffi::{c_char, c_int, c_void},
+    ffi::{c_char, c_int},
     sync::atomic::Ordering::Relaxed,
 };
 
 use crate::unistd;
-
-#[cfg(not(feature = "stack_parse"))]
-type InitArrayFn = extern "C" fn(c_int, *const *const c_char, *const *const c_char);
-#[cfg(feature = "stack_parse")]
-type InitArrayFn = extern "C" fn();
 
 /// glibc passes argc, argv, and envp to functions in `.init_array`, as a
 /// non-standard extension
@@ -19,40 +13,50 @@ type InitArrayFn = extern "C" fn();
 #[unsafe(link_section = ".init_array.00099")]
 static INIT_ARRAY_00099: InitArrayFn = init_array;
 
-#[cfg(not(feature = "stack_parse"))]
-extern "C" fn init_array(argc: c_int, argv: *const *const c_char, envp: *const *const c_char) {
-    unistd::ARGC.store(argc as usize, Relaxed);
-    unistd::ARGV.store(argv.cast_mut(), Relaxed);
-    unistd::ENVP.store(envp.cast_mut(), Relaxed);
-}
+core::cfg_select! {
+    any(
+        feature = "stack_parse",
+        not(any(target_libc = "glibc", target_libc = "bionic"))
+    ) => {
+        type InitArrayFn = extern "C" fn();
 
-#[cfg(feature = "stack_parse")]
-extern "C" fn init_array() {
-    unsafe extern "C" {
-        safe static __libc_stack_end: *const c_void;
+        extern "C" fn init_array() {
+            unsafe extern "C" {
+                safe static __libc_stack_end: *const core::ffi::c_void;
+            }
+
+            let sp = __libc_stack_end;
+            debug_assert!(!sp.is_null());
+
+            // SAFETY: In `.init_array` at the top of the stack lies argc of type `c_int`.
+            let argc = unsafe { sp.cast::<c_int>().read() } as usize;
+            debug_assert!(argc != 0);
+
+            // SAFETY: After argc comes a pointer to `argv[0]`.
+            let argv = unsafe { sp.byte_add(size_of::<usize>()).cast::<*const c_char>() };
+
+            // SAFETY: `argv[argc..argc-1]`.
+            let argv_end = unsafe { argv.add(argc) };
+            // SAFETY: After argv comes NULL.
+            debug_assert!(unsafe { argv_end.read() }.is_null());
+
+            // SAFETY: After NULL comes envp[0].
+            let envp = unsafe { argv_end.add(1) };
+
+            unistd::ARGC.store(argc, Relaxed);
+            unistd::ARGV.store(argv.cast_mut(), Relaxed);
+            unistd::ENVP.store(envp.cast_mut(), Relaxed);
+        }
     }
+    _ => {
+        type InitArrayFn = extern "C" fn(c_int, *const *const c_char, *const *const c_char);
 
-    let sp = __libc_stack_end;
-    debug_assert!(!sp.is_null());
-
-    // SAFETY: In `.init_array` at the top of the stack lies argc of type `c_int`.
-    let argc = unsafe { sp.cast::<c_int>().read() } as usize;
-    debug_assert!(argc != 0);
-
-    // SAFETY: After argc comes a pointer to `argv[0]`.
-    let argv = unsafe { sp.byte_add(size_of::<usize>()).cast::<*const c_char>() };
-
-    // SAFETY: `argv[argc..argc-1]`.
-    let argv_end = unsafe { argv.add(argc) };
-    // SAFETY: After argv comes NULL.
-    debug_assert!(unsafe { argv_end.read() }.is_null());
-
-    // SAFETY: After NULL comes envp[0].
-    let envp = unsafe { argv_end.add(1) };
-
-    unistd::ARGC.store(argc, Relaxed);
-    unistd::ARGV.store(argv.cast_mut(), Relaxed);
-    unistd::ENVP.store(envp.cast_mut(), Relaxed);
+        extern "C" fn init_array(argc: c_int, argv: *const *const c_char, envp: *const *const c_char) {
+            unistd::ARGC.store(argc as usize, Relaxed);
+            unistd::ARGV.store(argv.cast_mut(), Relaxed);
+            unistd::ENVP.store(envp.cast_mut(), Relaxed);
+        }
+    }
 }
 
 #[cfg(test)]
