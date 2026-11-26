@@ -68,18 +68,12 @@ impl fmt::Debug for Path {
     }
 }
 
-macro_rules! impl_asrefmut_for_path {
+macro_rules! impl_asref_for_path {
     ($($T:ty),* $(,)?) => {
         $(
             impl AsRef<Path> for $T {
                 fn as_ref(&self) -> &Path {
                     Path::from_os_str(self)
-                }
-            }
-
-            impl AsMut<Path> for $T {
-                fn as_mut(&mut self) -> &mut Path {
-                    Path::from_mut_os_str(self)
                 }
             }
         )*
@@ -98,7 +92,7 @@ impl AsMut<Self> for Path {
     }
 }
 
-impl_asrefmut_for_path!(str, String, CStr);
+impl_asref_for_path!(str, String, CStr);
 
 #[cfg(test)]
 mod tests {

@@ -13,20 +13,12 @@ pub struct Slice {
 impl Slice {
     #[must_use]
     pub const fn from_str(s: &str) -> &Self {
-        // SAFETY: If a string contains \0, it is truncated at that point.
-        unsafe { Self::from_bytes_unchecked(s.as_bytes()) }
-    }
-
-    #[must_use]
-    pub const fn from_str_mut(s: &mut str) -> &mut Self {
-        // SAFETY: If a string contains \0, it is truncated at that point.
-        unsafe { Self::from_mut_bytes_unchecked(s.as_bytes_mut()) }
+        Self::from_bytes(s.as_bytes())
     }
 
     #[must_use]
     pub const fn from_cstr(s: &CStr) -> &Self {
-        // SAFETY: No NUL in string.
-        unsafe { Self::from_bytes_unchecked(s.to_bytes()) }
+        Self::from_bytes(s.to_bytes())
     }
 
     #[must_use]
@@ -41,44 +33,17 @@ impl Slice {
         }
 
         let mut_buf = cstr_as_mut_bytes(s);
-        // SAFETY: No NUL in string
-        unsafe { Self::from_mut_bytes_unchecked(mut_buf) }
+        Self::from_bytes_mut(mut_buf)
     }
 
-    pub const fn from_bytes(bytes: &[u8]) -> Option<&Self> {
-        const fn contains_nul(bytes: &[u8]) -> bool {
-            let mut idx = 0;
-            while idx < bytes.len() {
-                if bytes[idx] == 0 {
-                    return true;
-                }
-                idx += 1;
-            }
-            false
-        }
-
-        if contains_nul(bytes) {
-            None
-        } else {
-            // SAFETY: Not contains NUL.
-            let slice = unsafe { Self::from_bytes_unchecked(bytes) };
-            Some(slice)
-        }
-    }
-
-    /// # Safety
-    /// `value` must not contain null bytes, but the last byte may be a null byte.
-    #[must_use]
-    pub const unsafe fn from_bytes_unchecked(value: &[u8]) -> &Self {
+    pub const fn from_bytes(bytes: &[u8]) -> &Self {
         // SAFETY: [u8] == Slice (repr transparent)
-        unsafe { &*(&raw const *value as *const Self) }
+        unsafe { &*(&raw const *bytes as *const Self) }
     }
 
-    /// # Safety
-    /// `value` must not contain null bytes, but the last byte may be a null byte.
-    pub const unsafe fn from_mut_bytes_unchecked(value: &mut [u8]) -> &mut Self {
-        // SAFETY: Wtf8 == Slice (repr transparent)
-        unsafe { &mut *(&raw mut *value as *mut Self) }
+    pub const fn from_bytes_mut(bytes: &mut [u8]) -> &mut Self {
+        // SAFETY: [u8] == Slice (repr transparent)
+        unsafe { &mut *(&raw mut *bytes as *mut Self) }
     }
 
     #[must_use]
@@ -111,7 +76,6 @@ impl Slice {
         }
     }
 
-    #[must_use]
     pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
         let bytes = &self.bytes;
         let mut buf = Vec::with_capacity(bytes.len() + 1);
@@ -173,7 +137,7 @@ impl fmt::Debug for Slice {
 }
 
 #[repr(transparent)]
-#[derive(PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq)]
 pub struct Buf {
     bytes: Vec<u8>,
 }
@@ -192,33 +156,23 @@ impl Buf {
     }
 
     #[must_use]
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_str(s: &str) -> Self {
         Self::from_bytes(s.as_bytes())
     }
 
     #[must_use]
-    pub fn from_cstr(s: &CStr) -> Self {
-        // SAFETY: No NUL in string.
-        unsafe { Self::from_bytes_unchecked(s.to_bytes()) }
+    pub fn from_c_str(s: &CStr) -> Self {
+        Self::from_bytes(s.to_bytes())
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.contains(&0) {
-            None
-        } else {
-            // SAFETY: Not contains NUL.
-            let slice = unsafe { Self::from_bytes_unchecked(bytes) };
-            Some(slice)
-        }
-    }
-
-    /// # Safety
-    /// `value` must not contain null bytes, but the last byte may be a null byte.
-    #[must_use]
-    pub unsafe fn from_bytes_unchecked(value: &[u8]) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            bytes: Vec::from(value),
+            bytes: Vec::from(bytes),
         }
+    }
+
+    pub const fn from_vec(vec: Vec<u8>) -> Self {
+        Self { bytes: vec }
     }
 
     #[must_use]
@@ -238,8 +192,7 @@ impl Buf {
 
     #[must_use]
     pub const fn as_inner_slice(&self) -> &Slice {
-        // SAFETY: `Buf` & `Slice` are created in the same, safe.
-        unsafe { Slice::from_bytes_unchecked(self.as_bytes()) }
+        Slice::from_bytes(self.as_bytes())
     }
 
     /// # Errors
@@ -257,7 +210,6 @@ impl Buf {
         }
     }
 
-    #[must_use]
     pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
         let bytes = &self.bytes;
         let mut buf = Vec::with_capacity(bytes.len() + 1);

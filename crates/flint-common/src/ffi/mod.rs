@@ -1,2 +1,2 @@
 mod osstr;
-pub use osstr::OsStr;
+pub use osstr::*;

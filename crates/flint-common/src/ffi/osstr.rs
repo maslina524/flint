@@ -4,7 +4,7 @@ use std::{
     fmt,
 };
 
-use crate::sys::osstr::Slice;
+use crate::sys::osstr::{Buf, Slice};
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq)]
@@ -22,11 +22,9 @@ impl OsStr {
     }
 
     #[must_use]
-    pub const fn from_bytes(bytes: &[u8]) -> Option<&Self> {
-        match Slice::from_bytes(bytes) {
-            Some(s) => Some(Self::from_inner(s)),
-            None => None,
-        }
+    pub const fn from_bytes(bytes: &[u8]) -> &Self {
+        let slice = Slice::from_bytes(bytes);
+        Self::from_inner(slice)
     }
 
     const fn from_inner(slice: &Slice) -> &Self {
@@ -44,7 +42,10 @@ impl OsStr {
         self.slice.to_str()
     }
 
-    #[must_use]
+    /// # Errors
+    /// If Path does not comply with the rules:
+    /// - Unix: Must not contain zero.
+    /// - Windows: Must be valid for UTF-16.
     pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
         self.slice.to_c_str()
     }
@@ -95,21 +96,9 @@ impl AsRef<OsStr> for str {
     }
 }
 
-impl AsMut<OsStr> for str {
-    fn as_mut(&mut self) -> &mut OsStr {
-        OsStr::from_inner_mut(Slice::from_str_mut(self))
-    }
-}
-
 impl AsRef<OsStr> for String {
     fn as_ref(&self) -> &OsStr {
         OsStr::from_inner(Slice::from_str(self))
-    }
-}
-
-impl AsMut<OsStr> for String {
-    fn as_mut(&mut self) -> &mut OsStr {
-        OsStr::from_inner_mut(Slice::from_str_mut(self))
     }
 }
 
@@ -122,6 +111,125 @@ impl AsRef<OsStr> for CStr {
 impl AsMut<OsStr> for CStr {
     fn as_mut(&mut self) -> &mut OsStr {
         OsStr::from_inner_mut(Slice::from_cstr_mut(self))
+    }
+}
+
+#[repr(transparent)]
+#[derive(Default, PartialEq, Eq)]
+pub struct OsString {
+    buf: Buf,
+}
+
+impl OsString {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { buf: Buf::new() }
+    }
+
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            buf: Buf::with_capacity(capacity),
+        }
+    }
+
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.buf.as_bytes()
+    }
+
+    #[must_use]
+    pub const fn as_os_str(&self) -> &OsStr {
+        let slice = Slice::from_bytes(self.as_bytes());
+        OsStr::from_inner(slice)
+    }
+
+    /// # Errors
+    /// If bytes is not a UTF-8 compatible string.
+    #[must_use]
+    pub const fn to_str(&self) -> Option<&str> {
+        self.buf.to_str()
+    }
+
+    /// # Errors
+    /// If the string contains a NUL.
+    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
+        self.buf.to_c_str()
+    }
+
+    #[must_use]
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        self.buf.to_string_lossy()
+    }
+}
+
+impl From<&str> for OsString {
+    fn from(value: &str) -> Self {
+        Self {
+            buf: Buf::from_str(value),
+        }
+    }
+}
+
+impl From<String> for OsString {
+    fn from(value: String) -> Self {
+        Self {
+            buf: Buf::from_vec(value.into_bytes()),
+        }
+    }
+}
+
+impl From<&CStr> for OsString {
+    fn from(value: &CStr) -> Self {
+        Self {
+            buf: Buf::from_c_str(value),
+        }
+    }
+}
+
+impl From<CString> for OsString {
+    fn from(value: CString) -> Self {
+        Self {
+            buf: Buf::from_vec(value.into_bytes()),
+        }
+    }
+}
+
+impl From<&[u8]> for OsString {
+    fn from(value: &[u8]) -> Self {
+        Self {
+            buf: Buf::from_bytes(value),
+        }
+    }
+}
+
+impl From<Vec<u8>> for OsString {
+    fn from(value: Vec<u8>) -> Self {
+        Self {
+            buf: Buf::from_vec(value),
+        }
+    }
+}
+
+impl fmt::Display for OsString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_os_str(), f)
+    }
+}
+
+impl fmt::Debug for OsString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_os_str(), f)
     }
 }
 
@@ -154,8 +262,15 @@ mod tests {
 
     #[test]
     fn display_and_debug() {
-        let osstr = OsStr::from_bytes(b"foo\xED\xA0\x80bar").unwrap();
+        let osstr = OsStr::from_bytes(b"foo\xED\xA0\x80bar");
         assert_eq!(format!("{osstr}"), "foo���bar");
         assert_eq!(format!("{osstr:?}"), r#""foo\xED\xA0\x80bar""#);
+    }
+
+    #[test]
+    fn str_with_bul() {
+        let text = "Hello\0World";
+        let path = OsStr::new(text);
+        assert!(path.to_c_str().is_err());
     }
 }
