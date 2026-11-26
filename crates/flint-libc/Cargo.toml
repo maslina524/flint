@@ -6,6 +6,9 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[features]
+stack_parse = []
+
 [dependencies]
 
 [dev-dependencies]
