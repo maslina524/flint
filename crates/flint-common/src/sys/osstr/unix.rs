@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, FromVecWithNulError},
     fmt, slice,
 };
 
@@ -97,7 +97,7 @@ impl Slice {
     }
 
     /// # Errors
-    /// If [`Wtf8`] is not a UTF-8 compatible string.
+    /// If bytes is not a UTF-8 compatible string.
     #[must_use]
     pub const fn to_str(&self) -> Option<&str> {
         let bytes = self.as_bytes();
@@ -112,14 +112,13 @@ impl Slice {
     }
 
     #[must_use]
-    pub fn as_c_str(&self) -> CString {
+    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
         let bytes = &self.bytes;
         let mut buf = Vec::with_capacity(bytes.len() + 1);
         buf.extend_from_slice(bytes);
+        buf.push(0);
 
-        // SAFETY: Create a `CString` from bytes that initially lack a NUL,
-        // and then append a single NUL at the end of the string.
-        unsafe { CString::from_vec_unchecked(buf) }
+        CString::from_vec_with_nul(buf)
     }
 
     #[must_use]
@@ -170,5 +169,118 @@ impl fmt::Debug for Slice {
         }
 
         write!(f, "\"")
+    }
+}
+
+#[repr(transparent)]
+#[derive(PartialEq, Eq)]
+pub struct Buf {
+    bytes: Vec<u8>,
+}
+
+impl Buf {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { bytes: Vec::new() }
+    }
+
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(capacity),
+        }
+    }
+
+    #[must_use]
+    pub fn from_str(s: &str) -> Option<Self> {
+        Self::from_bytes(s.as_bytes())
+    }
+
+    #[must_use]
+    pub fn from_cstr(s: &CStr) -> Self {
+        // SAFETY: No NUL in string.
+        unsafe { Self::from_bytes_unchecked(s.to_bytes()) }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.contains(&0) {
+            None
+        } else {
+            // SAFETY: Not contains NUL.
+            let slice = unsafe { Self::from_bytes_unchecked(bytes) };
+            Some(slice)
+        }
+    }
+
+    /// # Safety
+    /// `value` must not contain null bytes, but the last byte may be a null byte.
+    #[must_use]
+    pub unsafe fn from_bytes_unchecked(value: &[u8]) -> Self {
+        Self {
+            bytes: Vec::from(value),
+        }
+    }
+
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.bytes.as_slice()
+    }
+
+    #[must_use]
+    pub const fn as_inner_slice(&self) -> &Slice {
+        // SAFETY: `Buf` & `Slice` are created in the same, safe.
+        unsafe { Slice::from_bytes_unchecked(self.as_bytes()) }
+    }
+
+    /// # Errors
+    /// If bytes is not a UTF-8 compatible string.
+    #[must_use]
+    pub const fn to_str(&self) -> Option<&str> {
+        let bytes = self.as_bytes();
+        if bytes.is_empty() {
+            return Some("");
+        }
+
+        match str::from_utf8(bytes) {
+            Ok(s) => Some(s),
+            Err(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
+        let bytes = &self.bytes;
+        let mut buf = Vec::with_capacity(bytes.len() + 1);
+        buf.extend_from_slice(bytes);
+        buf.push(0);
+
+        CString::from_vec_with_nul(buf)
+    }
+
+    #[must_use]
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        String::from_utf8_lossy(self.as_bytes())
+    }
+}
+
+impl fmt::Display for Buf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_inner_slice(), f)
+    }
+}
+
+impl fmt::Debug for Buf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_inner_slice(), f)
     }
 }

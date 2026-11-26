@@ -51,7 +51,11 @@ core::cfg_select! {
     _ => {
         type InitArrayFn = extern "C" fn(c_int, *const *const c_char, *const *const c_char);
 
-        extern "C" fn init_array(argc: c_int, argv: *const *const c_char, envp: *const *const c_char) {
+        extern "C" fn init_array(
+            argc: c_int,
+            argv: *const *const c_char,
+            envp: *const *const c_char,
+        ) {
             unistd::ARGC.store(argc as usize, Relaxed);
             unistd::ARGV.store(argv.cast_mut(), Relaxed);
             unistd::ENVP.store(envp.cast_mut(), Relaxed);

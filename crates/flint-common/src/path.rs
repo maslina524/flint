@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, FromVecWithNulError},
     fmt,
 };
 
@@ -32,9 +32,12 @@ impl Path {
         self.inner.to_str()
     }
 
-    #[must_use]
-    pub fn as_c_str(&self) -> CString {
-        self.inner.as_c_str()
+    /// # Errors
+    /// If Path does not comply with the rules:
+    /// - Unix: Must not contain zero.
+    /// - Windows: Must be valid for UTF-16.
+    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
+        self.inner.to_c_str()
     }
 
     #[must_use]
@@ -111,11 +114,12 @@ mod tests {
     #[test]
     fn as_c_str() {
         let path = Path::new("/home/rustling/path/from/str");
-        assert_eq!(path.as_c_str(), c"/home/rustling/path/from/str");
+        let c_str = path.to_c_str().unwrap_or_else(|_| unreachable!());
+        assert_eq!(c_str, c"/home/rustling/path/from/str");
 
-        let c_str = c"/home/rustling/path/from/c_str";
-        let path = Path::new(c_str);
-        assert_eq!(path.as_c_str(), c_str);
+        let path = Path::new(c"/home/rustling/path/from/c_str");
+        let c_str = path.to_c_str().unwrap_or_else(|_| unreachable!());
+        assert_eq!(c_str, c"/home/rustling/path/from/c_str");
     }
 
     #[test]

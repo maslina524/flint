@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, FromVecWithNulError},
     fmt,
 };
 
@@ -45,8 +45,8 @@ impl OsStr {
     }
 
     #[must_use]
-    pub fn as_c_str(&self) -> CString {
-        self.slice.as_c_str()
+    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
+        self.slice.to_c_str()
     }
 
     #[must_use]
@@ -143,14 +143,13 @@ mod tests {
     #[test]
     fn as_c_str_new() {
         let c_string = cr"From &str wo \0".to_owned();
-        let osstr = OsStr::new(r"From &str wo \0");
-        assert_eq!(osstr.as_c_str(), Cow::<'_, CStr>::Owned(c_string));
+        let os_str = OsStr::new(r"From &str wo \0");
+        let c_str = os_str.to_c_str().unwrap_or_else(|_| unreachable!());
+        assert_eq!(c_str, Cow::<'_, CStr>::Owned(c_string));
 
-        let osstr = OsStr::new(c"OsStr from CStr");
-        assert_eq!(
-            osstr.as_c_str(),
-            Cow::<'_, CStr>::Borrowed(c"OsStr from CStr")
-        );
+        let os_str = OsStr::new(c"OsStr from CStr");
+        let c_str = os_str.to_c_str().unwrap_or_else(|_| unreachable!());
+        assert_eq!(c_str, Cow::<'_, CStr>::Borrowed(c"OsStr from CStr"));
     }
 
     #[test]
