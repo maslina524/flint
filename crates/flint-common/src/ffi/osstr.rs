@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     ffi::{CStr, CString, FromVecWithNulError},
     fmt,
-    ops::Deref,
+    ops::{Deref, Index},
 };
 
 use crate::sys::osstr::{Buf, Slice};
@@ -134,6 +134,17 @@ impl AsRef<OsStr> for [u8] {
 impl AsMut<OsStr> for [u8] {
     fn as_mut(&mut self) -> &mut OsStr {
         OsStr::from_inner_mut(Slice::from_bytes_mut(self))
+    }
+}
+
+impl<I> Index<I> for OsStr
+where
+    [u8]: Index<I, Output = [u8]>,
+{
+    type Output = Self;
+
+    fn index(&self, index: I) -> &Self {
+        self.slice[index].as_ref()
     }
 }
 
