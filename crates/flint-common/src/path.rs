@@ -1,10 +1,8 @@
 use std::{
-    borrow::Cow,
-    ffi::{CStr, CString, FromVecWithNulError},
-    fmt,
+    borrow::{Borrow, Cow}, ffi::{CStr, CString, FromVecWithNulError}, fmt,
 };
 
-use crate::ffi::OsStr;
+use crate::ffi::{OsStr, OsString};
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq)]
@@ -28,6 +26,11 @@ impl Path {
     }
 
     #[must_use]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.inner.as_bytes()
+    }
+
+    #[must_use]
     pub const fn to_str(&self) -> Option<&str> {
         self.inner.to_str()
     }
@@ -43,6 +46,12 @@ impl Path {
     #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         self.inner.to_string_lossy()
+    }
+
+    #[must_use]
+    pub fn to_pathbuf(&self) -> PathBuf {
+        let bytes = self.inner.as_bytes();
+        PathBuf::from(bytes)
     }
 
     #[must_use]
@@ -86,13 +95,142 @@ impl AsRef<Self> for Path {
     }
 }
 
-impl AsMut<Self> for Path {
-    fn as_mut(&mut self) -> &mut Self {
-        self
+impl AsRef<Path> for [u8] {
+    fn as_ref(&self) -> &Path {
+        Path::from_os_str(self)
     }
 }
 
 impl_asref_for_path!(str, String, CStr);
+
+impl ToOwned for Path {
+    type Owned = PathBuf;
+    fn to_owned(&self) -> Self::Owned {
+        self.to_pathbuf()
+    }
+}
+
+#[repr(transparent)]
+#[derive(Default, Clone, PartialEq, Eq)]
+pub struct PathBuf {
+    inner: OsString
+}
+
+impl PathBuf {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { inner: OsString::new() }
+    }
+
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: OsString::with_capacity(capacity),
+        }
+    }
+
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.inner.as_bytes()
+    }
+
+    #[must_use]
+    pub const fn as_path(&self) -> &Path {
+        let bytes = self.as_bytes();
+        // SAFETY: [u8] == OsStr == Path (repr transparent)
+        unsafe { &*(&raw const *bytes as *const Path) }
+    }
+
+    /// # Errors
+    /// If bytes is not a UTF-8 compatible string.
+    #[must_use]
+    pub const fn to_str(&self) -> Option<&str> {
+        self.inner.to_str()
+    }
+
+    /// # Errors
+    /// If the string contains a NUL.
+    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
+        self.inner.to_c_str()
+    }
+
+    #[must_use]
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        self.inner.to_string_lossy()
+    }
+}
+
+impl From<&Path> for PathBuf {
+    fn from(value: &Path) -> Self {
+        Self {
+            inner: OsString::from(value.as_bytes())
+        }
+    }
+}
+
+impl From<&str> for PathBuf {
+    fn from(value: &str) -> Self {
+        Self {
+            inner: OsString::from(value),
+        }
+    }
+}
+
+impl From<String> for PathBuf {
+    fn from(value: String) -> Self {
+        Self {
+            inner: OsString::from(value),
+        }
+    }
+}
+
+impl From<&CStr> for PathBuf {
+    fn from(value: &CStr) -> Self {
+        Self {
+            inner: OsString::from(value),
+        }
+    }
+}
+
+impl From<CString> for PathBuf {
+    fn from(value: CString) -> Self {
+        Self {
+            inner: OsString::from(value),
+        }
+    }
+}
+
+impl From<&[u8]> for PathBuf {
+    fn from(value: &[u8]) -> Self {
+        Self {
+            inner: OsString::from(value),
+        }
+    }
+}
+
+impl From<Vec<u8>> for PathBuf {
+    fn from(value: Vec<u8>) -> Self {
+        Self {
+            inner: OsString::from(value),
+        }
+    }
+}
+
+impl Borrow<Path> for PathBuf {
+    fn borrow(&self) -> &Path {
+        self.as_path()
+    }
+}
 
 #[cfg(test)]
 mod tests {

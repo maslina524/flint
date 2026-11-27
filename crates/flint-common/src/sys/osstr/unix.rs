@@ -137,7 +137,7 @@ impl fmt::Debug for Slice {
 }
 
 #[repr(transparent)]
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct Buf {
     bytes: Vec<u8>,
 }

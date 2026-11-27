@@ -36,6 +36,11 @@ impl OsStr {
         // SAFETY: Slice == OsStr (repr transparent)
         unsafe { &mut *(&raw mut *slice as *mut Self) }
     }
+    
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.slice.as_bytes()
+    }
 
     #[must_use]
     pub const fn to_str(&self) -> Option<&str> {
@@ -114,8 +119,20 @@ impl AsMut<OsStr> for CStr {
     }
 }
 
+impl AsRef<OsStr> for [u8] {
+    fn as_ref(&self) -> &OsStr {
+        OsStr::from_inner(Slice::from_bytes(self))
+    }
+}
+
+impl AsMut<OsStr> for [u8] {
+    fn as_mut(&mut self) -> &mut OsStr {
+        OsStr::from_inner_mut(Slice::from_bytes_mut(self))
+    }
+}
+
 #[repr(transparent)]
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct OsString {
     buf: Buf,
 }
