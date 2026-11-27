@@ -171,6 +171,11 @@ impl OsString {
         OsStr::from_inner(slice)
     }
 
+    #[must_use]
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.buf.into_bytes()
+    }
+
     /// # Errors
     /// If bytes is not a UTF-8 compatible string.
     #[must_use]
@@ -187,6 +192,22 @@ impl OsString {
     #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         self.buf.to_string_lossy()
+    }
+
+    pub fn extend<I: IntoIterator<Item = u8>>(&mut self, iter: I) {
+        self.buf.extend(iter);
+    }
+
+    pub fn push_str(&mut self, s: &str) {
+        self.buf.push_str(s);
+    }
+
+    pub fn push_char(&mut self, ch: char) {
+        self.buf.push_char(ch);
+    }
+
+    pub fn push_byte(&mut self, byte: u8) {
+        self.buf.push_byte(byte);
     }
 }
 
@@ -254,7 +275,7 @@ impl fmt::Debug for OsString {
 mod tests {
     use std::{borrow::Cow, ffi::CStr};
 
-    use crate::ffi::OsStr;
+    use crate::ffi::{OsStr, OsString};
 
     #[test]
     fn create_new() {
@@ -289,5 +310,16 @@ mod tests {
         let text = "Hello\0World";
         let path = OsStr::new(text);
         assert!(path.to_c_str().is_err());
+    }
+
+    #[test]
+    fn push_and_push_str() {
+        let mut osstring = OsString::with_capacity(32);
+        osstring.push_str("Hello");
+        osstring.push_char(' ');
+        osstring.push_str("World");
+        osstring.push_byte(b'!');
+
+        assert_eq!(osstring.to_str(), Some("Hello World!"));
     }
 }

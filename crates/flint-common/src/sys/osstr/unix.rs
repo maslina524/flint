@@ -195,6 +195,11 @@ impl Buf {
         Slice::from_bytes(self.as_bytes())
     }
 
+    #[must_use]
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.bytes
+    }
+
     /// # Errors
     /// If bytes is not a UTF-8 compatible string.
     #[must_use]
@@ -222,6 +227,24 @@ impl Buf {
     #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(self.as_bytes())
+    }
+
+    pub fn extend<I: IntoIterator<Item = u8>>(&mut self, iter: I) {
+        self.bytes.extend(iter);
+    }
+
+    pub fn push_str(&mut self, s: &str) {
+        self.extend(s.bytes());
+    }
+
+    pub fn push_char(&mut self, ch: char) {
+        let mut buf = [0u8; 4];
+        let s = ch.encode_utf8(&mut buf);
+        self.push_str(s);
+    }
+
+    pub fn push_byte(&mut self, byte: u8) {
+        self.bytes.push(byte);
     }
 }
 
