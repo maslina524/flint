@@ -200,6 +200,10 @@ impl OsString {
     pub fn pop(&mut self) -> Option<u8> {
         self.buf.pop()
     }
+
+    pub fn truncate(&mut self, len: usize) {
+        self.buf.truncate(len);
+    }
 }
 
 impl Deref for OsString {

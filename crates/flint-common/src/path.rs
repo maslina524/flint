@@ -215,6 +215,21 @@ impl PathBuf {
 
         join_inner(self, path.as_ref())
     }
+
+    pub fn pop(&mut self) -> bool {
+        let buf_start = self.as_bytes().as_ptr();
+        let Some(last) = self.components().next_back() else {
+            return false;
+        };
+
+        let mut new_len = last.as_bytes().as_ptr().addr() - buf_start.addr();
+        if new_len > 1 && SEP_BYTES.contains(&self.as_bytes()[new_len - 1]) {
+            new_len -= 1;
+        }
+
+        self.inner.truncate(new_len);
+        true
+    }
 }
 
 impl Deref for PathBuf {
@@ -500,6 +515,39 @@ mod tests {
 
         pathbuf.push("flint");
         assert_eq!(pathbuf.to_str(), Some("/home/rustling/Projects/flint"));
+    }
+
+    #[test]
+    fn pathbuf_join_pop() {
+        let mut pathbuf = PathBuf::from("/home/");
+
+        pathbuf.push("rustling");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling"));
+
+        pathbuf.push("Projects");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling/Projects"));
+
+        pathbuf.pop();
+        pathbuf.push("Videos");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling/Videos"));
+
+        pathbuf.push("example");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling/Videos/example"));
+
+        pathbuf.pop();
+        pathbuf.pop();
+        pathbuf.pop();
+        assert_eq!(pathbuf.to_str(), Some("/home"));
+
+        pathbuf.push("guest");
+        assert_eq!(pathbuf.to_str(), Some("/home/guest"));
+
+        pathbuf.pop();
+        pathbuf.pop();
+        assert_eq!(pathbuf.to_str(), Some("/"));
+
+        pathbuf.pop();
+        assert_eq!(pathbuf.to_str(), Some("/"));
     }
 
     #[test]

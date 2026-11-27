@@ -216,6 +216,10 @@ impl Buf {
     pub fn push_byte(&mut self, byte: u8) {
         self.bytes.push(byte);
     }
+
+    pub fn truncate(&mut self, len: usize) {
+        self.bytes.truncate(len);
+    }
 }
 
 impl Deref for Buf {
