@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     ffi::{CStr, CString, FromVecWithNulError},
     fmt,
+    ops::Deref,
 };
 
 use crate::sys::osstr::{Buf, Slice};
@@ -68,6 +69,11 @@ impl OsStr {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.slice.is_empty()
+    }
+
+    #[must_use]
+    pub fn last_byte(&self) -> Option<&u8> {
+        self.slice.last()
     }
 }
 
@@ -151,47 +157,13 @@ impl OsString {
     }
 
     #[must_use]
-    pub const fn len(&self) -> usize {
-        self.buf.len()
-    }
-
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.buf.is_empty()
-    }
-
-    #[must_use]
-    pub const fn as_bytes(&self) -> &[u8] {
-        self.buf.as_bytes()
-    }
-
-    #[must_use]
     pub const fn as_os_str(&self) -> &OsStr {
-        let slice = Slice::from_bytes(self.as_bytes());
-        OsStr::from_inner(slice)
+        OsStr::from_inner(self.buf.as_inner_slice())
     }
 
     #[must_use]
     pub fn into_bytes(self) -> Vec<u8> {
         self.buf.into_bytes()
-    }
-
-    /// # Errors
-    /// If bytes is not a UTF-8 compatible string.
-    #[must_use]
-    pub const fn to_str(&self) -> Option<&str> {
-        self.buf.to_str()
-    }
-
-    /// # Errors
-    /// If the string contains a NUL.
-    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
-        self.buf.to_c_str()
-    }
-
-    #[must_use]
-    pub fn to_string_lossy(&self) -> Cow<'_, str> {
-        self.buf.to_string_lossy()
     }
 
     pub fn extend<I: IntoIterator<Item = u8>>(&mut self, iter: I) {
@@ -208,6 +180,21 @@ impl OsString {
 
     pub fn push_byte(&mut self, byte: u8) {
         self.buf.push_byte(byte);
+    }
+
+    pub fn push_os_str(&mut self, os_str: &OsStr) {
+        self.buf.extend(os_str.as_bytes().iter().copied());
+    }
+
+    pub fn pop(&mut self) -> Option<u8> {
+        self.buf.pop()
+    }
+}
+
+impl Deref for OsString {
+    type Target = OsStr;
+    fn deref(&self) -> &Self::Target {
+        self.as_os_str()
     }
 }
 

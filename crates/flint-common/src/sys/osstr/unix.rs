@@ -1,7 +1,9 @@
 use std::{
     borrow::Cow,
     ffi::{CStr, CString, FromVecWithNulError},
-    fmt, slice,
+    fmt,
+    ops::{Deref, DerefMut},
+    slice,
 };
 
 #[repr(transparent)]
@@ -118,6 +120,13 @@ impl fmt::Display for Slice {
     }
 }
 
+impl Deref for Slice {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        self.as_bytes()
+    }
+}
+
 impl fmt::Debug for Slice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"")?;
@@ -176,16 +185,6 @@ impl Buf {
     }
 
     #[must_use]
-    pub const fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
-    }
-
-    #[must_use]
     pub const fn as_bytes(&self) -> &[u8] {
         self.bytes.as_slice()
     }
@@ -198,35 +197,6 @@ impl Buf {
     #[must_use]
     pub fn into_bytes(self) -> Vec<u8> {
         self.bytes
-    }
-
-    /// # Errors
-    /// If bytes is not a UTF-8 compatible string.
-    #[must_use]
-    pub const fn to_str(&self) -> Option<&str> {
-        let bytes = self.as_bytes();
-        if bytes.is_empty() {
-            return Some("");
-        }
-
-        match str::from_utf8(bytes) {
-            Ok(s) => Some(s),
-            Err(_) => None,
-        }
-    }
-
-    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
-        let bytes = &self.bytes;
-        let mut buf = Vec::with_capacity(bytes.len() + 1);
-        buf.extend_from_slice(bytes);
-        buf.push(0);
-
-        CString::from_vec_with_nul(buf)
-    }
-
-    #[must_use]
-    pub fn to_string_lossy(&self) -> Cow<'_, str> {
-        String::from_utf8_lossy(self.as_bytes())
     }
 
     pub fn extend<I: IntoIterator<Item = u8>>(&mut self, iter: I) {
@@ -245,6 +215,19 @@ impl Buf {
 
     pub fn push_byte(&mut self, byte: u8) {
         self.bytes.push(byte);
+    }
+}
+
+impl Deref for Buf {
+    type Target = Vec<u8>;
+    fn deref(&self) -> &Self::Target {
+        &self.bytes
+    }
+}
+
+impl DerefMut for Buf {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.bytes
     }
 }
 

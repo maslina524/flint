@@ -2,9 +2,19 @@ use std::{
     borrow::{Borrow, Cow},
     ffi::{CStr, CString, FromVecWithNulError},
     fmt,
+    ops::Deref,
 };
 
 use crate::ffi::{OsStr, OsString};
+
+core::cfg_select! {
+    target_os = "windows" => {
+        static SEP_BYTES: &[u8] = br"\/";
+    }
+    target_family = "unix" => {
+        static SEP_BYTES: &[u8] = b"/";
+    }
+}
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq)]
@@ -30,6 +40,11 @@ impl Path {
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8] {
         self.inner.as_bytes()
+    }
+
+    #[must_use]
+    pub const fn as_os_str(&self) -> &OsStr {
+        &self.inner
     }
 
     #[must_use]
@@ -146,43 +161,55 @@ impl PathBuf {
     }
 
     #[must_use]
-    pub const fn len(&self) -> usize {
-        self.inner.len()
+    pub fn as_path(&self) -> &Path {
+        Path::from_os_str(self.inner.as_os_str())
     }
 
     #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+    pub fn has_trailing_sep(&self) -> bool {
+        let Some(last) = self.inner.last_byte() else {
+            return false;
+        };
+        SEP_BYTES.contains(last)
+    }
+
+    pub fn pop_trailing_sep(&mut self) -> bool {
+        if !self.has_trailing_sep() {
+            return false;
+        }
+        self.inner.pop().is_some()
+    }
+
+    pub fn push<T: AsRef<Path>>(&mut self, path: T) -> &mut Self {
+        fn push_inner<'a>(me: &'a mut PathBuf, path: &Path) -> &'a mut PathBuf {
+            if !me.has_trailing_sep() {
+                me.inner.push_char('/');
+            }
+            me.inner.push_os_str(path.as_os_str());
+            me
+        }
+
+        push_inner(self, path.as_ref())
     }
 
     #[must_use]
-    pub const fn as_bytes(&self) -> &[u8] {
-        self.inner.as_bytes()
-    }
+    pub fn join<T: AsRef<Path>>(self, path: T) -> Self {
+        fn join_inner(mut me: PathBuf, path: &Path) -> PathBuf {
+            if !me.has_trailing_sep() {
+                me.inner.push_char('/');
+            }
+            me.inner.push_os_str(path.as_os_str());
+            me
+        }
 
-    #[must_use]
-    pub const fn as_path(&self) -> &Path {
-        let bytes = self.as_bytes();
-        // SAFETY: [u8] == OsStr == Path (repr transparent)
-        unsafe { &*(&raw const *bytes as *const Path) }
+        join_inner(self, path.as_ref())
     }
+}
 
-    /// # Errors
-    /// If bytes is not a UTF-8 compatible string.
-    #[must_use]
-    pub const fn to_str(&self) -> Option<&str> {
-        self.inner.to_str()
-    }
-
-    /// # Errors
-    /// If the string contains a NUL.
-    pub fn to_c_str(&self) -> Result<CString, FromVecWithNulError> {
-        self.inner.to_c_str()
-    }
-
-    #[must_use]
-    pub fn to_string_lossy(&self) -> Cow<'_, str> {
-        self.inner.to_string_lossy()
+impl Deref for PathBuf {
+    type Target = Path;
+    fn deref(&self) -> &Self::Target {
+        self.as_path()
     }
 }
 
@@ -367,5 +394,19 @@ mod tests {
         let pathbuf = PathBuf::from(bytes);
         let lossy = pathbuf.to_string_lossy();
         assert_eq!(lossy, "/home/some/pathbuf/���/");
+    }
+
+    #[test]
+    fn pathbuf_join() {
+        let mut pathbuf = PathBuf::from("/home/");
+
+        pathbuf.push("rustling");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling"));
+
+        pathbuf.push("Projects");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling/Projects"));
+
+        pathbuf.push("flint");
+        assert_eq!(pathbuf.to_str(), Some("/home/rustling/Projects/flint"));
     }
 }
