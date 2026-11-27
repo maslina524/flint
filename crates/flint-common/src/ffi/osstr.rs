@@ -36,7 +36,7 @@ impl OsStr {
         // SAFETY: Slice == OsStr (repr transparent)
         unsafe { &mut *(&raw mut *slice as *mut Self) }
     }
-    
+
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8] {
         self.slice.as_bytes()

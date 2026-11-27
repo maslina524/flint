@@ -1,5 +1,7 @@
 use std::{
-    borrow::{Borrow, Cow}, ffi::{CStr, CString, FromVecWithNulError}, fmt,
+    borrow::{Borrow, Cow},
+    ffi::{CStr, CString, FromVecWithNulError},
+    fmt,
 };
 
 use crate::ffi::{OsStr, OsString};
@@ -101,6 +103,12 @@ impl AsRef<Path> for [u8] {
     }
 }
 
+impl<const N: usize> AsRef<Path> for [u8; N] {
+    fn as_ref(&self) -> &Path {
+        Path::from_os_str(&self[..])
+    }
+}
+
 impl_asref_for_path!(str, String, CStr);
 
 impl ToOwned for Path {
@@ -110,16 +118,24 @@ impl ToOwned for Path {
     }
 }
 
+impl PartialEq<PathBuf> for &Path {
+    fn eq(&self, other: &PathBuf) -> bool {
+        *self == other.as_path()
+    }
+}
+
 #[repr(transparent)]
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct PathBuf {
-    inner: OsString
+    inner: OsString,
 }
 
 impl PathBuf {
     #[must_use]
     pub const fn new() -> Self {
-        Self { inner: OsString::new() }
+        Self {
+            inner: OsString::new(),
+        }
     }
 
     #[must_use]
@@ -170,10 +186,22 @@ impl PathBuf {
     }
 }
 
+impl fmt::Display for PathBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.as_path(), f)
+    }
+}
+
+impl fmt::Debug for PathBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.as_path(), f)
+    }
+}
+
 impl From<&Path> for PathBuf {
     fn from(value: &Path) -> Self {
         Self {
-            inner: OsString::from(value.as_bytes())
+            inner: OsString::from(value.as_bytes()),
         }
     }
 }
@@ -218,6 +246,14 @@ impl From<&[u8]> for PathBuf {
     }
 }
 
+impl<const N: usize> From<&[u8; N]> for PathBuf {
+    fn from(value: &[u8; N]) -> Self {
+        Self {
+            inner: OsString::from(&value[..]),
+        }
+    }
+}
+
 impl From<Vec<u8>> for PathBuf {
     fn from(value: Vec<u8>) -> Self {
         Self {
@@ -232,19 +268,25 @@ impl Borrow<Path> for PathBuf {
     }
 }
 
+impl PartialEq<Path> for PathBuf {
+    fn eq(&self, other: &Path) -> bool {
+        self.as_path() == other
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::path::Path;
+    use crate::path::{Path, PathBuf};
 
     #[test]
-    fn display_and_debug() {
+    fn path_display_and_debug() {
         let path = Path::new("/home/rustling/Projects/flint");
         assert_eq!(format!("{path}"), "/home/rustling/Projects/flint");
         assert_eq!(format!("{path:?}"), r#""/home/rustling/Projects/flint""#);
     }
 
     #[test]
-    fn as_c_str() {
+    fn path_as_c_str() {
         let path = Path::new("/home/rustling/path/from/str");
         let c_str = path.to_c_str().unwrap_or_else(|_| unreachable!());
         assert_eq!(c_str, c"/home/rustling/path/from/str");
@@ -255,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn len_and_is_empty() {
+    fn path_len_and_is_empty() {
         let path = Path::new("/home/rustling/");
         assert_eq!(path.len(), 15);
         assert!(!path.is_empty());
@@ -266,5 +308,64 @@ mod tests {
 
         assert!(Path::new("").is_empty());
         assert!(Path::new(c"").is_empty());
+    }
+
+    #[test]
+    fn path_to_string_lossy() {
+        let bytes = b"/home/some/path/\xED\xA0\x80/";
+        let path = Path::new(bytes);
+        let lossy = path.to_string_lossy();
+        assert_eq!(lossy, "/home/some/path/���/");
+    }
+
+    #[test]
+    fn pathbuf_display_and_debug() {
+        let pathbuf = PathBuf::from("/home/pathbuf/");
+        assert_eq!(format!("{pathbuf}"), "/home/pathbuf/");
+        assert_eq!(format!("{pathbuf:?}"), r#""/home/pathbuf/""#);
+    }
+
+    #[test]
+    fn pathbuf_as_c_str() {
+        let pathbuf = PathBuf::from("/home/rustling/path/from/str");
+        let c_str = pathbuf.to_c_str().unwrap_or_else(|_| unreachable!());
+        assert_eq!(c_str, c"/home/rustling/path/from/str");
+
+        let pathbuf = PathBuf::from(c"/home/rustling/path/from/c_str");
+        let c_str = pathbuf.to_c_str().unwrap_or_else(|_| unreachable!());
+        assert_eq!(c_str, c"/home/rustling/path/from/c_str");
+    }
+
+    #[test]
+    fn pathbuf_len_and_is_empty() {
+        let pathbuf = PathBuf::from("/home/rustling/");
+        assert_eq!(pathbuf.len(), 15);
+        assert!(!pathbuf.is_empty());
+
+        let pathbuf = PathBuf::from(c"/home/rustling/");
+        assert_eq!(pathbuf.len(), 15);
+        assert!(!pathbuf.is_empty());
+
+        assert!(Path::new("").is_empty());
+        assert!(Path::new(c"").is_empty());
+    }
+
+    #[test]
+    fn path_eq_pathbuf() {
+        let path = Path::new("/home/some/path");
+        let pathbuf = PathBuf::from("/home/some/path");
+        assert_eq!(path, pathbuf);
+
+        let path = Path::new(c"/home/some/path");
+        let pathbuf = PathBuf::from(c"/home/some/path");
+        assert_eq!(path, pathbuf);
+    }
+
+    #[test]
+    fn pathbuf_to_string_lossy() {
+        let bytes = b"/home/some/pathbuf/\xED\xA0\x80/";
+        let pathbuf = PathBuf::from(bytes);
+        let lossy = pathbuf.to_string_lossy();
+        assert_eq!(lossy, "/home/some/pathbuf/���/");
     }
 }
